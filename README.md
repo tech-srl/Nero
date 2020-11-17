@@ -4,7 +4,7 @@ This is the official implementation of `Nero-GNN`, the prototype described in: [
 
 Our evaluation dataset and other resources are available [here](https://doi.org/10.5281/zenodo.4081641) (Zenodo). These will be used and further explained next.
 
-<center style="padding: 40px"><img width="90%" src="https://github.com/urialon/rPigeoNN/raw/labels2_uri_gnn_lstm_refactor/images/ACSG.png" /></center>
+<center style="padding: 40px"><img width="90%" src="https://raw.githubusercontent.com/tech-srl/Nero/main/images/ACSG.png" /></center>
 
 ## Requirements
   * [python3.6](https://www.linuxbabe.com/ubuntu/install-python-3-6-ubuntu-16-04-16-10-17-04) 
