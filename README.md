@@ -4,10 +4,58 @@ This is the official implementation of `Nero-GNN`, the prototype described in: [
 
 Our evaluation dataset and other resources are available [here](https://doi.org/10.5281/zenodo.4081641) (Zenodo). These will be used and further explained next.
 
-<center style="padding: 40px"><img width="90%" src="https://raw.githubusercontent.com/tech-srl/Nero/main/images/ACSG.png" /></center>
+![An overview of the data-gen process](https://github.com/tech-srl/Nero/blob/main/images/ACSG.png?raw=true "Data-generation Process")
 
-## Requirements
-  * [python3.6](https://www.linuxbabe.com/ubuntu/install-python-3-6-ubuntu-16-04-16-10-17-04) 
+This prototype is composed of two parts:
+1. [Data generation](#generating-representations-for-binary-procedures): used to generate the procedure representations for the model.
+1. [GNN neural model](#predicting-procedure-names-using-neural-models): uses the procedure representations to train a GNN model for predicting procedure names.
+
+## Requirements 
+
+### Data Generation Specific Requirements
+
+* [python3.8](https://www.python.org/downloads/)
+* [LLVM version 10](https://llvm.org/docs/GettingStarted.html) and the llvmlite & llvmcpy python packages (other versions might work. 3.x will not).
+* [IDA-PRO](https://www.hex-rays.com/products/ida/) (tested with version 6.95).
+* [angr](http://angr.io), and the simuvex package. 
+* A few more python packages: scandir, tqdm, jsonpickle, parmap, python-magic, pyelftools, setproctitle.
+
+Using a licensed IDA-PRO installation for Linux, all of these requirements were verified as compatible for running on an Ubuntu 20 machine (and with some more effort even on Ubuntu 16).
+
+For Ubuntu 20, you can use the `requirements.txt` file in this repository to install all python packages against the native python3.8 version:
+
+```bash
+pip3 install -r requirements.txt
+```
+
+LLVM version 10 can be installed with:
+```bash
+sudo apt get install llvm-10
+```
+
+The IDA-python scripts (in `datagen/ida/py2`) were tested against the python 2.7 version bundled with IDA-PRO 6.95, and should work with newer versions at least up-to 7.4 (more info [here](https://www.hex-rays.com/products/ida/support/ida74_idapython_python3.shtml)). Please [file a bug](https://github.com/tech-srl/Nero/issues) if it doesn't.
+
+The jsonpickle python package also needs to be installed for use by this bundled python version:
+
+1. Download the package: 
+```bash 
+wget https://files.pythonhosted.org/packages/32/d5/2f47f03d3f64c31b0d7070b488274631d7567c36e81a9f744e6638bb0f0d/jsonpickle-0.9.6.tar.gz
+```
+2. Extract only the package sources: 
+```bash 
+tar -xvf jsonpickle-0.9.6.tar.gz jsonpickle-0.9.6/jsonpickle/
+```
+3. Move it to the IDA-PRO python directory: 
+```bash 
+mv jsonpickle-0.9.6/jsonpickle /opt/ida-6.95/idal64/python/
+```
+
+Note that, when installed as root, IDA-PRO defaults to installing in `/opt/ida-6.95/idal64`. Other paths will require adjusting here and in other scripts.
+
+### Neural Model Specific Requirements
+
+  * [python3.6](https://www.python.org/downloads/). (For using the same Ubuntu 20 machine for training and data generation we recommend using [virtualenv](http://thomas-cokelaer.info/blog/2014/08/installing-another-python-version-into-virtualenv/))
+  * These two python packages: jsonpickle, scipy
   * TensorFlow 1.13.1 ([install](https://www.tensorflow.org/install/install_linux)) or using:
 
 ```bash
@@ -29,16 +77,56 @@ python3 -c 'import tensorflow as tf; print(tf.__version__)'
  
 ## Generating Representations for Binary Procedures
 
-[Our dataset](https://zenodo.org/record/4099685/files/nero_dataset_binaries.tar.gz) was created by compiling several GNU source-code packages into binary executables. 
-The packages are split into three sets: training, validation and test (each in its own directory in the extracted archive).
+[Our binaries dataset](https://zenodo.org/record/4099685/files/nero_dataset_binaries.tar.gz) was created by compiling several GNU source-code packages into binary executables and performing a thorough cleanup and deduplication process (detailed in [our paper](https://arxiv.org/abs/1902.09122)).
+ 
+The packages are split into three sets: training, validation and test (each in its own directory in the extracted archive: `TRAIN`, `VALIDATE` & `TEST` resp.).
 
-| :construction:        | We are working on sharing a stable and easy to use version of our binary representations generation system. <BR> Stay tuned for updates on this repository.        | :construction:        |
-|---------------|:------------------------:|---------------|
+To obtain preprocessed representations for these binaries you can either download our preprocessed dataset, or create a new dataset from our or any other binaries dataset.
 
+### Creating Representations
 
-Performing a thorough cleanup and deduplication process (detailed in
-[our paper](https://arxiv.org/abs/1902.09122)) resulted in a dataset containing
-67,246 samples. The procedure representations for these samples can be found
+#### Indexing
+
+Indexing, i.e., analyzing the binaries and creating augmented control flow graphs based representations for them is performed using:
+
+```bash
+python3 -u index_binaries.py --input-dir TRAIN --output-dir TRAIN_INDEXED
+```
+
+where `TRAIN` is the directory holding the binaries to index, and results are placed in `TRAIN_INDEXED`. 
+
+To index successfully, binaries must contain debug information and adhere to this file name structure: 
+```
+<compiler>-<compiler version>__O<Optimization level(u for default)>__<Package name>[-<optional package version>]__<Executable name> 
+```
+For example: "gcc-5__Ou__cssc__sccs".
+
+Note that the indexing process might take several hours, and some of its results depend on the timeout value selected for procedure indexing (controlled by `--index-timeout` with the default of 30 minutes). We recommend running it on a machine with multiple CPU-cores and adequate RAM. Procedure indexing will also stop if more than 1000 unique CFG paths are extracted.
+
+To change the path to the IDA-PRO installation use `--idal64-path`.
+
+#### Filter and collect
+
+Next, to filter and collect all the indexed procedures into one JSON file:
+```bash
+python3 -u collect_and_filter.py --input-dir TRAIN_INDEXED --output-file=train.json
+```
+
+This will filter and collect indexed procedures from `TRAIN_INDEXED` (which should hold the indexed binaries for training from the last step) and store them in `train.json`.
+
+#### Preprocess for use by the model
+
+Finally, to preprocess raw representations, preparing them for use by the neural model, use:
+
+```bash
+python3 preprocess.py -trd train.json -ted test.json -vd validation.json -o data
+```
+
+This will preprocess the training(`train.json`), validation(`validation.json`) and test(`test.json`) files. Note that this step require TensorFlow and other components mentioned [here](#neural-model-specific-requirements).
+
+### Using Prepared Representations
+
+The procedure representations for the binaries in our dataset can be found
 [in this archive](https://zenodo.org/record/4095276/files/procedure_representations.tar.gz).
 
 Extracting the procedure representations archive will create the folder `procedure_representations` and inside it two more folders:
@@ -50,15 +138,15 @@ The `preprocessed` directory contains:
 1. `data.val` - The (preprocessed) validation set samples.
 1. `data.test` - The (preprocessed) test set samples.
 
-## Training New Models
+## Predicting Procedure Names Using Neural Models
 
 As we show in [our paper](https://arxiv.org/abs/1902.09122), `Nero-GNN` is the best variation of our approach, and so we focus on and showcase it here.
 
-### Training from scratch
+### Training From Scratch
 
 Training a `Nero-GNN` model is performed by running the following command line:
 ```bash
-python3 -u nero.py --data procedure_representations/processed/data \
+python3 -u gnn.py --data procedure_representations/processed/data \
 --test procedure_representations/processed/data.val --save new_model/model \
 --gnn_layers NUM_GNN_LAYERS
 ```
@@ -67,7 +155,9 @@ Where `NUM_GNN_LAYERS` is the number of GNN layers. In the paper, we found `NUM_
 The paths to the (training) `--data` and (validation) `--test` arguments can be changed to point to a new dataset.
 Here, we provide the dataset that [we used in the paper](#generating-representations-for-binary-procedures). 
 
-### Trained models
+We trained our models using a `Tesla V100` GPU. Other GPUs might require changing the number of GNN layers or other dims to fit into the available RAM.
+
+### Using Pre-Trained Models
 
 Trained models are available [in this archive](https://zenodo.org/record/4095276/files/nero_gnn_model.tar.gz).
 Extracting it will create the `gnn` directory composed of:
@@ -79,7 +169,7 @@ Extracting it will create the `gnn` directory composed of:
 
 Evaluation of a trained model is performed using the following command line: 
 ```bash
-python3 -u nero.py --test procedure_representations/data.test \
+python3 -u gnn.py --test procedure_representations/data.test \
 --load gnn/model_iter495 \
 --gnn_layers NUM_GNN_LAYERS
 ```
@@ -92,9 +182,9 @@ The value of `NUM_GNN_LAYERS` should be the same as in training.
 * Use the `--no_api` flag during training **and** testing, to train an "obfuscated" model (as in Table 2 in [our paper](https://arxiv.org/abs/1902.09122)) - a model that does not use the API names (assuming they are obfuscated).
 
 
-### Understanding the prediction process and its results
+### Understanding the Prediction Process and Its Results
 
-This section provides a name prediction walkthrough for an example from our test set ([further explained here](#generating-representations-for-binary-procedures).
+This section provides a name prediction walk-through for an example from our test set ([further explained here](#generating-representations-for-binary-procedures).
 For readability, we start straight from the graph representation (similar to the one depicted in Fig.2(c) in [our paper](https://arxiv.org/abs/1902.09122)) and skip the rest of the steps.
 
 The `get_tz` procedure from the `find` executable is part of `findutils` package.
@@ -102,7 +192,7 @@ This procedure is represented as a json found at line 1715 in `procedure_represe
 
 This json can be pretty-printed by running:
 ```bash
-awk 'NR==1715' procedure_representations/raw/test.json | python -m json.tool
+awk 'NR==1715' procedure_representations/raw/test.json | python3 -m json.tool
 ```
 
 This json represents the procedure's graph:
