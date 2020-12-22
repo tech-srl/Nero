@@ -56,7 +56,7 @@ except IdaAssert:
     pass  # thrown and reported
 
 except Exception as e:
-    logging.exception(eessage)
+    logging.exception(e.message)
 
 if len(idc.ARGV) > 1 and idc.ARGV[1] == "NEXIT":
     print "NO EXIT"

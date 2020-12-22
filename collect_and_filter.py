@@ -24,8 +24,8 @@ from tqdm import tqdm
 
 from datagen.common.common_functions import create_tmpfs, run_as_main, do_parser_init, get_size_mbs, \
     add_common_args_to_parser, make_sure_dir_exists
-from datagen.indexer.files import IndexedExeFile, IndexedExeFileZip
-from datagen.indexer.ida.proc_name_cleanup import get_no_prefix_suffix_proc_name
+from datagen.files import IndexedExeFile, IndexedExeFileZip
+from datagen.ida.proc_name_cleanup import get_no_prefix_suffix_proc_name
 from datagen.proc_name_utils import get_split_subtokens_proc_name
 
 max_target_name_len = 6
