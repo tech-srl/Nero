@@ -1,3 +1,5 @@
+import warnings
+warnings.filterwarnings('ignore',category=FutureWarning)
 import itertools
 from jsonpickle import loads
 import multiprocessing as mp
@@ -9,8 +11,6 @@ from scipy import stats
 import tensorflow as tf
 
 from datagen import kind_utils
-
-pool_size = 64
 
 MAX_CONTEXTS = 0
 MAX_INTERNAL_PATHS = 0
@@ -157,7 +157,7 @@ def process_file(file_path, data_file_role, dataset_name, collect_histograms=Fal
         writer = create_writer(data_file_role, dataset_name)
 
         if collect_histograms:
-            with mp.Pool(pool_size) as pool:
+            with mp.Pool() as pool:
                 examples_with_histograms = pool.imap_unordered(make_example_and_histograms, file, chunksize=100)
                 for i, (ex, local_target_to_count, local_api_to_count, local_arg_to_count, local_num_nodes) \
                         in enumerate(examples_with_histograms):
@@ -174,7 +174,7 @@ def process_file(file_path, data_file_role, dataset_name, collect_histograms=Fal
                     writer.write(ex)
 
         else:
-            with mp.Pool(pool_size) as pool:
+            with mp.Pool() as pool:
                 serialized_examples = pool.imap_unordered(make_example_from_line, file, chunksize=100)
                 for i, ex in enumerate(serialized_examples):
                     writer.write(ex)

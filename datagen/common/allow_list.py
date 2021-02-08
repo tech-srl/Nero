@@ -41,6 +41,7 @@ def break_name(name):
         with_proc = False
         match = break_opt_noproc_re.match(name)
         if not match:
+            logging.error("Error breaking name - {}".format(name))
             raise ValueError
     else:
         with_proc = True

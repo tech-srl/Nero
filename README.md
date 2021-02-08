@@ -6,9 +6,13 @@ Our evaluation dataset and other resources are available [here](https://doi.org/
 
 ![An overview of the data-gen process](https://github.com/tech-srl/Nero/blob/main/images/ACSG.png?raw=true "Data-generation Process")
 
-This prototype is composed of two parts:
-1. [Data generation](#generating-representations-for-binary-procedures): used to generate the procedure representations for the model.
-1. [GNN neural model](#predicting-procedure-names-using-neural-models): uses the procedure representations to train a GNN model for predicting procedure names.
+Table of Contents
+=================
+  * [Requirements](#requirements)
+  * [Data generation](#generating-representations-for-binary-procedures)
+  * [GNN neural model](#predicting-procedure-names-using-neural-models)
+  * [Evaluation](#evaluation)
+  * [Citation](#citation)
 
 ## Requirements 
 
@@ -101,9 +105,12 @@ To index successfully, binaries must contain debug information and adhere to thi
 ```
 For example: "gcc-5__Ou__cssc__sccs".
 
-Note that the indexing process might take several hours, and some of its results depend on the timeout value selected for procedure indexing (controlled by `--index-timeout` with the default of 30 minutes). We recommend running it on a machine with multiple CPU-cores and adequate RAM. Procedure indexing will also stop if more than 1000 unique CFG paths are extracted.
-
-To change the path to the IDA-PRO installation use `--idal64-path`.
+Some notes on the indexing process and its results:
+1. The indexing process might take several hours. We recommend running it on a machine with multiple CPU-cores and adequate RAM.
+1. The number of procedures created might depend on the timeout value selected for procedure indexing (controlled by `--index-timeout` with the default of 30 minutes).
+1. Procedures containing features not supported by the indexing engine (e.g., vector operations) or CFGs with more than 1000 unique CFG paths will not be indexed.
+1. The created representations might have some minor discrepancies when compared with those published in zenodo. These include JSON field ordering and formating. These discrepancies are the result of porting this prototype to Python3 towards its publication.
+1. To change the path to the IDA-PRO installation use `--idal64-path`.
 
 #### Filter and collect
 
@@ -224,3 +231,22 @@ This line starts with the prediction code: `+`,`±` or `-` for full, partial, or
 * **Truncated suffix subtokens:** `['BLANK', 'BLANK', 'BLANK', 'BLANK']`
 
 Note that we truncate the prediction after the first `BLANK` or `UNKNOWN` sub-token prediction. 
+
+
+## Citation 
+
+[Neural Reverse Engineering of Stripped Binaries using Augmented Control Flow Graphs](https://arxiv.org/pdf/1902.09122)
+
+```
+@article{
+    David2020,
+    title = {Neural Reverse Engineering of Stripped Binaries Using Augmented Control Flow Graphs},
+    author = {David, Yaniv and Alon, Uri and Yahav, Eran},
+    doi = {10.1145/3428293},
+    journal = {Proceedings of the ACM on Programming Languages},
+    number = {OOPSLA},
+    title = {{Neural reverse engineering of stripped binaries using augmented control flow graphs}},
+    volume = {4},
+    year = {2020}
+}
+```

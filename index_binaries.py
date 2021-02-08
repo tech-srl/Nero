@@ -1,14 +1,13 @@
 import argparse
 import logging
 
-from scandir import listdir
-from os.path import join as path_join, isfile, realpath, basename, isdir
+from os.path import isfile, realpath, basename, isdir
 from tqdm import tqdm
 
 from datagen.index_engine_core import index_object, my_aggregated_md5s_with_llvm, is_indexed, \
     add_index_engine_core_to_parser
 from datagen.common.common_functions import create_mapper, filtered_listdir_with_path, run_as_main, create_tmpfs, \
-    do_parser_init, get_size_mbs, add_common_args_to_parser, make_sure_dir_exists
+    do_parser_init, get_size_mbs, add_common_args_to_parser, make_sure_dir_exists, full_path_listdir
 
 
 def main(args):
@@ -27,12 +26,6 @@ def main(args):
         return realpath(path).replace(realpath(args['objects_dir']), realpath(args['indexed_dir'])) + '.zip'
 
     mapper = create_mapper(args)
-    objects_dirs = filtered_listdir_with_path(args['objects_dir'])
-
-    logging.critical("#obj-dirs = {}".format(len(objects_dirs)))
-
-    if args['reversed']:
-        objects_dirs = reversed(objects_dirs)
 
     # mark the indexed file with the (hash of the content of the) python code involved in creating it, for sanity
     # Input directory structure is Objects -> projects* -> exes*
@@ -44,22 +37,27 @@ def main(args):
             return not any([path.endswith(s) for s in [".id0", ".id1", ".id2", ".nam", ".i64", ".til", ".asm"]]) \
                    and isfile(path) and ".DS_Store" not in path
 
-        for object_dir in objects_dirs:
-            for object_path in filter(object_filter, [path_join(object_dir, f) for f in listdir(object_dir)]):
-                object_name = basename(object_path)
-                file_size_mb = get_size_mbs(object_path)
-                if file_size_mb > args['max_size_mb']:
-                    logging.warn("Dropping binary file {}, too big ({}MB)".format(object_name, file_size_mb))
-                    continue
+        objects = full_path_listdir(args['objects_dir'])
+        if args['reversed']:
+            objects = reversed(objects)
+        objects = list(objects)
+        logging.info("#objs in dir = {}".format(len(objects)))
 
-                to_index_path = get_indexed_path(object_path)
-                if is_indexed(object_path, to_index_path, my_aggregated_md5s_with_llvm):
-                    continue
+        for object_path in objects:
+            object_name = basename(object_path)
+            file_size_mb = get_size_mbs(object_path)
+            if file_size_mb > args['max_size_mb']:
+                logging.warning("Dropping binary file {}, too big ({}MB)".format(object_name, file_size_mb))
+                continue
 
-                yield object_path, to_index_path, args
+            to_index_path = get_indexed_path(object_path)
+            if is_indexed(object_path, to_index_path, my_aggregated_md5s_with_llvm):
+                continue
+
+            yield object_path, to_index_path, args
 
     to_work = list(yielder())
-    logging.critical("#todo in yielder = {}".format(len(to_work)))
+    logging.info("#non-indexed in yielder = {}".format(len(to_work)))
     for _ in tqdm(mapper(index_object, to_work, pm_chunksize=1)):
         pass
 

@@ -196,7 +196,7 @@ def create_mapper(args, pool_to_use=None):
         logging.debug("Creating a pool with {} cores for mapper".format(args['num_cores']))
         if pool_to_use is None:
             pool_to_use = Pool(args['num_cores'])
-        mapper = functools.partial(parmap.starmap, pool=pool_to_use, pm_chunksize=1)
+        mapper = functools.partial(parmap.starmap, pm_pool=pool_to_use, pm_chunksize=1)
     else:
         logging.debug("Creating a non-parallelizable mapper (1 core)")
         mapper = functools.partial(parmap.starmap, pm_parallel=False)

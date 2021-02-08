@@ -252,13 +252,12 @@ def main(args):
 
     make_sure_dir_exists(path_split(args['output_file'])[0])
     with open(args['output_file'], "w") as out_file:
-        create_tmpfs("collect_model")
-        workdir = mkdtemp(dir=create_tmpfs.tmp_files_path)
         imported_libs_counter = Counter()
         main_proc_filters = deepcopy(proc_filters_template)
         step = args['step']
         items_to_yield = list(yielder(args['input_dir']))
         current = 0
+        proc_counter = 0
 
         while current < len(items_to_yield):
             with closing(Pool(args['num_cores'])) as pool, tqdm(total=min(len(items_to_yield) - current, step)) as pbar:
@@ -269,6 +268,7 @@ def main(args):
                     imported_libs_counter += my_imported_lib_counter
                     for out_rep in out_gnn_jsons:
                         out_file.write("{}\n".format(out_rep))
+                        proc_counter += 1
 
                     for index in range(0, len(proc_filters_template)):
                         main_proc_filters[index][1] += my_proc_filters[index][1]
@@ -286,6 +286,7 @@ def main(args):
 
     print("Records done")
     print(main_proc_filters)
+    print("#Procs = {}".format(proc_counter))
     print("Output file written")
 
 

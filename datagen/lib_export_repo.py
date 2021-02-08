@@ -58,3 +58,8 @@ class LibExpRepo(object):
     def __len__(self):
         return len(self._repo)
 
+
+if __name__ == '__main__':
+    repo = LibExpRepo()
+    logging.critical("Repo has {} records".format(len(repo)))
+    print(repo.get_export_info("fork"))
