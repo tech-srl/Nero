@@ -132,6 +132,31 @@ class LLVMCPYBlockSlicer(object):
     def get_operands(stmt):
         return [stmt.get_operand(i) for i in range(0, stmt.num_operands)]
 
+    def get_closest_write_inttoptr(self, stmt, other_stmts):
+        my_bb_subpath_index = self._sub_path.index(stmt.instruction_parent)
+        other_stmts_list = list(other_stmts)
+        other_stmts_bb_indices = [(self._sub_path.index(x.instruction_parent), x) for x in other_stmts_list]
+        other_stmts_from_my_bb = [x for x in other_stmts_bb_indices if x[0] == my_bb_subpath_index]
+        if len(other_stmts_from_my_bb) > 0:
+            my_bb_insts = list(stmt.instruction_parent.iter_instructions())
+            my_index_in_bb = my_bb_insts.index(stmt)
+            stmts_in_my_bb_with_index = [(my_bb_insts.index(x[1]), x[1]) for x in other_stmts_from_my_bb]
+            # stmts_in_my_bb_with_index_before_me = [x for x in stmts_in_my_bb_with_index if x[0] < my_index_in_bb]#store指令在前面
+            stmts_in_my_bb_with_index_before_me = [x for x in stmts_in_my_bb_with_index if x[0] > my_index_in_bb]#store指令在后面
+            if len(stmts_in_my_bb_with_index_before_me) > 0:
+                return max(stmts_in_my_bb_with_index_before_me, key=lambda x: x[0])[1]
+
+        # if we are here there are no insts in my bb before me..
+        other_stmts_from_prev_bbs = [x for x in other_stmts_bb_indices if x[0] > my_bb_subpath_index]#store指令所在块在inttoptr指令之前
+        if len(other_stmts_from_prev_bbs) > 0:
+            max_bb_index = max(other_stmts_from_prev_bbs, key=lambda x: x[0])[0]#得到最近一次store指令
+            stmts_in_prev_bb = [x for x in other_stmts_from_prev_bbs if x[0] == max_bb_index]
+            prev_bb_insts = list(self._sub_path[max_bb_index].iter_instructions())
+            indices_for_stmts_in_prev_bb = [(prev_bb_insts.index(x[1]), x[1]) for x in stmts_in_prev_bb]
+            return max(indices_for_stmts_in_prev_bb, key=lambda x:[0])[1]#返回最近的store指令
+        else:
+            return None
+
     def get_closest_write(self, stmt, other_stmts):
         my_bb_subpath_index = self._sub_path.index(stmt.instruction_parent)
         other_stmts_list = list(other_stmts)
@@ -141,12 +166,12 @@ class LLVMCPYBlockSlicer(object):
             my_bb_insts = list(stmt.instruction_parent.iter_instructions())
             my_index_in_bb = my_bb_insts.index(stmt)
             stmts_in_my_bb_with_index = [(my_bb_insts.index(x[1]), x[1]) for x in other_stmts_from_my_bb]
-            stmts_in_my_bb_with_index_before_me = [x for x in stmts_in_my_bb_with_index if x[0] < my_index_in_bb]
+            stmts_in_my_bb_with_index_before_me = [x for x in stmts_in_my_bb_with_index if x[0] > my_index_in_bb]
             if len(stmts_in_my_bb_with_index_before_me) > 0:
                 return max(stmts_in_my_bb_with_index_before_me, key=lambda x: x[0])[1]
 
         # if we are here there are no insts in my bb before me..
-        other_stmts_from_prev_bbs = [x for x in other_stmts_bb_indices if x[0] < my_bb_subpath_index]
+        other_stmts_from_prev_bbs = [x for x in other_stmts_bb_indices if x[0] > my_bb_subpath_index]
         if len(other_stmts_from_prev_bbs) > 0:
             max_bb_index = max(other_stmts_from_prev_bbs, key=lambda x: x[0])[0]
             stmts_in_prev_bb = [x for x in other_stmts_from_prev_bbs if x[0] == max_bb_index]
@@ -196,7 +221,7 @@ class LLVMCPYBlockSlicer(object):
             if len(all_storing_inst) == 0:
                 last_writer_from_store = None
             else:
-                last_writer_from_store = self.get_closest_write(stmt, all_storing_inst)
+                last_writer_from_store = self.get_closest_write_inttoptr(stmt, all_storing_inst)
 
             return [LLVMCPYBlockSlicer.get_operand_at_i_no_const(0, stmt), last_writer_from_store]
 
