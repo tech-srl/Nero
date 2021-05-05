@@ -1,5 +1,6 @@
 import argparse
 import logging
+import atexit
 
 from os.path import isfile, realpath, basename, isdir
 from tqdm import tqdm
@@ -26,6 +27,11 @@ def main(args):
         return realpath(path).replace(realpath(args['objects_dir']), realpath(args['indexed_dir'])) + '.zip'
 
     mapper = create_mapper(args)
+
+    def maybe_close_pool():
+        if 'pm_pool' in mapper.keywords:
+            mapper.keywords['pm_pool'].close()
+    atexit.register(maybe_close_pool)
 
     # mark the indexed file with the (hash of the content of the) python code involved in creating it, for sanity
     # Input directory structure is Objects -> projects* -> exes*

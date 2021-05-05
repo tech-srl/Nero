@@ -1,4 +1,3 @@
-
 import llvmcpyimpl
 
 from datagen.ida.proc_name_cleanup import get_no_prefix_suffix_proc_name
@@ -60,6 +59,13 @@ class LLVMCPYBlockSlicer(object):
     def get_slice(self, used_label, stmt):
         in_the_slice = []
         to_process = [(cpyComparableStmt(used_label), "value_strand")]
+        first_writes = self.extract_writes(used_label)
+        if len(first_writes) == 2:
+            # used_label is a load/inttoptr inst
+            to_add = [(cpyComparableStmt(used_label), "value_strand"),
+                          (cpyComparableStmt(first_writes[1]), "value_strand")]
+            to_process = [x for x in to_add if x[0].stmt is not None]
+
         seen_before = set()
 
         while len(to_process) > 0:
@@ -152,7 +158,7 @@ class LLVMCPYBlockSlicer(object):
             stmts_in_prev_bb = [x for x in other_stmts_from_prev_bbs if x[0] == max_bb_index]
             prev_bb_insts = list(self._sub_path[max_bb_index].iter_instructions())
             indices_for_stmts_in_prev_bb = [(prev_bb_insts.index(x[1]), x[1]) for x in stmts_in_prev_bb]
-            return max(indices_for_stmts_in_prev_bb, key=lambda x:[0])[1]
+            return max(indices_for_stmts_in_prev_bb, key=lambda x: [0])[1]
         else:
             return None
 
@@ -163,7 +169,6 @@ class LLVMCPYBlockSlicer(object):
             print(e)
             raise e
         if stmt_name == "load":
-
             # stmt.get_operand(0) == the address to load from
             all_opr_uses = [x.get_user() for x in stmt.get_operand(0).iter_uses()]
             opr_uses = list(filter(self.stmt_in_path, all_opr_uses))
@@ -177,20 +182,20 @@ class LLVMCPYBlockSlicer(object):
             return [LLVMCPYBlockSlicer.get_operand_at_i_no_const(0, stmt), last_writer_from_store]
 
         if stmt_name == "inttoptr":
-
             # same as load ->store, this time with inttoptr
             # a nice example for this is - fatcache@fatcache__event_add_out (the rdx param)
 
             # stmt.get_operand(0) == the ptr
             all_opr_uses = [x.get_user() for x in stmt.get_operand(0).iter_uses()]
-            opr_uses = list(filter(self.stmt_in_path, all_opr_uses))
-            opr_also_inttoptr = [inst for inst in opr_uses if opcode_cache[inst.instruction_opcode].lower() == 'inttoptr']
+            opr_uses = filter(self.stmt_in_path, all_opr_uses)
+            opr_also_inttoptr = filter(lambda x: opcode_cache[x.instruction_opcode].lower() == 'inttoptr', opr_uses)
             all_storing_inst = set()
 
             for opr_inttoptr in opr_also_inttoptr:
                 all_opr_inttoptr_uses = [x.get_user() for x in opr_inttoptr.iter_uses()]
                 opr_inttoptr_uses = list(filter(self.stmt_in_path, all_opr_inttoptr_uses))
-                opr_also_inttoptr = [inst for inst in opr_inttoptr_uses if opcode_cache[inst.instruction_opcode].lower() == 'store']
+                opr_also_inttoptr = [inst for inst in opr_inttoptr_uses if
+                                     opcode_cache[inst.instruction_opcode].lower() == 'store']
                 all_storing_inst = all_storing_inst.union(set(opr_also_inttoptr))
 
             if len(all_storing_inst) == 0:
