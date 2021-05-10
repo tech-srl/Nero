@@ -67,7 +67,7 @@ class LLVMProcedure:
                 self._arch.__repr__())
 
         # this is a fancy way to get rax
-        self._ret_register_name = self._arch.vex_reg_offset_to_name[self._arch.ret_offset][0]
+        self._ret_register_name = self._arch.translate_register_name(self._arch.ret_offset)
         self._register_type = llvm_module._register_type
         self._proc_name = vex_procedure[IndexedProcedure.name]
 
@@ -758,4 +758,3 @@ class LLVMProcedure:
 
     def __repr__(self):
         return self._function.__repr__()
-
